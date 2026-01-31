@@ -72,6 +72,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.security.MessageDigest
 import kotlin.math.roundToInt
+import de.markusfisch.android.binaryeye.util.HexToBinByle8eDKa // ADDED
 
 class DecodeFragment : Fragment() {
 	private lateinit var contentView: EditText
@@ -98,6 +99,7 @@ class DecodeFragment : Fragment() {
 	private var closeAutomatically = false
 	private var action = ActionRegistry.DEFAULT_ACTION
 	private var isBinary = false
+	private var canSaveAsHex = false // ADDED: flag to show save-as-binary menu item
 	private var originalBytes: ByteArray = ByteArray(0)
 	private var label: String? = null
 	private var recreationSize = 0
@@ -248,6 +250,11 @@ class DecodeFragment : Fragment() {
 
 	private fun updateViewsAndFab(text: String, bytes: ByteArray? = null) {
 		val b = bytes ?: text.toByteArray()
+
+		// Проверка через утилиту: является ли содержимое строго HEX'ом
+		canSaveAsHex = HexToBinByle8eDKa.isStrictHex(text)
+		activity?.invalidateOptionsMenu()
+
 		resolveActionAndUpdateFab(b)
 		updateViews(text, b)
 	}
@@ -482,7 +489,10 @@ class DecodeFragment : Fragment() {
 
 	override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
 		inflater.inflate(R.menu.fragment_decode, menu)
-		if (id > 0L) {
+		// Твоя кнопка из XML — видимость управляется флагом canSaveAsHex
+		menu.findItem(R.id.save_as_binary)?.isVisible = canSaveAsHex
+
+		if (scan.id > 0L) {
 			menu.findItem(R.id.remove).isVisible = true
 		}
 		if (action is WifiAction) {
@@ -492,6 +502,11 @@ class DecodeFragment : Fragment() {
 
 	override fun onOptionsItemSelected(item: MenuItem): Boolean {
 		return when (item.itemId) {
+			R.id.save_as_binary -> {
+				saveHexAsFile()
+				true
+			}
+
 			R.id.copy_password -> {
 				copyPasswordToClipboard()
 				maybeBackOrFinish()
@@ -548,6 +563,24 @@ class DecodeFragment : Fragment() {
 			}
 
 			else -> super.onOptionsItemSelected(item)
+		}
+	}
+
+	// Добавленная функция для сохранения HEX -> бинарного файла
+	private fun saveHexAsFile() {
+		val ac = activity ?: return
+		val hexString = content
+		val extension = HexToBinByle8eDKa.getExtension(hexString) ?: "bin"
+
+		scope.launch(Dispatchers.Main) {
+			val name = ac.askForFileName("file.$extension") ?: return@launch
+			withContext(Dispatchers.IO) {
+				ac.writeExternalFile(name, "application/octet-stream") { outputStream ->
+					HexToBinByle8eDKa.save(hexString, outputStream)
+				}.toSaveResult().let { message ->
+					withContext(Dispatchers.Main) { ac.toast(message) }
+				}
+			}
 		}
 	}
 
