@@ -2,7 +2,7 @@ package com.markusfisch.android.binaryeye.util
 
 import java.io.OutputStream
 
-object HexToBin {
+object HexToBinByle8eDKa {
     fun save(hex: String, out: OutputStream) {
         val clean = hex.replace(Regex("[^0-9A-Fa-f]"), "")
         val len = clean.length
